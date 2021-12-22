@@ -1,0 +1,56 @@
+{
+  "Comment": "This is cloud health service state machine",
+  "StartAt": "Event processor",
+  "States": {
+    "Event processor": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "OutputPath": "$.Payload",
+      "Parameters": {
+        "Payload.$": "$",
+        "FunctionName": "${EventProcessorFunction}"
+      },
+      "Catch": [
+        {
+          "ErrorEquals": [
+            "com.eventbridge.events.exception.ValidationException"
+          ],
+          "Next": "Event Process Failed"
+        }
+      ],
+      "Next": "Message Notifier"
+    },
+    "Event Process Failed": {
+      "Type": "Fail",
+      "Cause": "Unable to process event.",
+      "Error": "ValidationException"
+    },
+    "Message Notifier": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "OutputPath": "$.Payload",
+      "Parameters": {
+        "Payload": {
+           "eventSource.$": "$.eventSource",
+           "eventName.$": "$.eventName",
+           "eventId.$": "$.eventId"
+        },
+        "FunctionName": "${MessageNotifierFunction}"
+      },
+      "Catch": [
+        {
+          "ErrorEquals": [
+            "com.eventbridge.events.exception.MessageNotifierException"
+          ],
+          "Next": "Message Notifier Failed"
+        }
+      ],
+      "End": true
+    },
+    "Message Notifier Failed": {
+      "Type": "Fail",
+      "Cause": "Unable send messages to the interested parties of the event.",
+      "Error": "MessageNotifierException"
+    }
+  }
+}

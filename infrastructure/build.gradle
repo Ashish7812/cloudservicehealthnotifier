@@ -1,0 +1,48 @@
+repositories {
+    jcenter()
+}
+
+apply plugin: 'application'
+
+dependencies {
+	compile "org.trimou:trimou-core:${mustacheVersion}"
+}
+
+def mainClass="com.eventbridge.infrastructure.ResolveTemplates"
+
+mainClassName=mainClass
+
+def artifactLocation="${project.rootDir}"
+
+task provisionStack(type: Exec) {
+	workingDir "$project.rootDir/artifacts"
+	
+    if (System.getProperty('os.name').toLowerCase(Locale.ROOT).contains('windows')) {
+        commandLine 'cmd', '/c', "deploy.sh $bucketName $region $stackName"
+    } else {
+        commandLine 'sh', '-c', "deploy.sh $bucketName $region $stackName"
+    }
+}
+
+task resolveProductionTemplate(type: JavaExec, dependsOn: [':handlers:copyS3LambdaJavaResources', 'copyDeployScript']) {
+	main=mainClass
+	classpath sourceSets.main.runtimeClasspath
+	def deploymentType='PRODUCTION'
+	args deploymentType,artifactLocation
+	
+	finalizedBy provisionStack
+}
+
+task resolveDevelopmentTemplate(type: JavaExec, dependsOn: [':integTest:copyS3LambdaJavaResources', 'copyDeployScript']) {
+	main=mainClass
+	classpath sourceSets.main.runtimeClasspath
+	def deploymentType='DEVELOPMENT'
+	args deploymentType,artifactLocation
+	
+	finalizedBy provisionStack
+}
+
+task copyDeployScript(type: Copy) {
+	from project(':infrastructure').files('deploy/deploy.sh')
+	into "${artifactLocation}/artifacts"
+}

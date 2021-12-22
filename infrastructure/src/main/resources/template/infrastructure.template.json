@@ -1,0 +1,547 @@
+{
+    "AWSTemplateFormatVersion": "2010-09-09",
+    "Transform": "AWS::Serverless-2016-10-31",
+    "Description": "Cloud health service notifier.",
+    "Parameters": {
+        "StackName": {
+            "Description": "Cloud health service stack name.",
+            "Type": "String"
+        },
+        "Bucket": {
+            "Description": "S3 bucket name where the artifacts are placed.",
+            "Type": "String"
+        },
+        "KeyPrefix": {
+            "Description": "Prefix of path within bucket where artifacts are placed.",
+            "Type": "String"
+        }
+    },
+    "Globals": {
+        "Function": {
+            "MemorySize": 3008,
+            "Runtime": "java8",
+            "Timeout": 300
+        }
+    },
+    "Resources": {
+        "CloudServiceLambdaRole": {
+            "Type": "AWS::IAM::Role",
+            "Properties": {
+                "RoleName": {
+                    "Fn::Join": [
+                        "-",
+                        [
+                            {
+                                "Ref": "StackName"
+                            },
+                            "LambdaRole"
+                        ]
+                    ]
+                },
+                "Path": "/",
+                "AssumeRolePolicyDocument": {
+                    "Version": "2012-10-17",
+                    "Statement": [
+                        {
+                            "Effect": "Allow",
+                            "Action": [
+                                "sts:AssumeRole"
+                            ],
+                            "Principal": {
+                                "Service": [
+                                    "lambda.amazonaws.com"
+                                ]
+                            }
+                        }
+                    ]
+                }
+            }
+        },
+        "CloudHealthServiceStateMachineRole": {
+            "Type": "AWS::IAM::Role",
+            "Properties": {
+                "Path": "/",
+                "AssumeRolePolicyDocument": {
+                    "Version": "2012-10-17",
+                    "Statement": [
+                        {
+                            "Effect": "Allow",
+                            "Action": [
+                                "sts:AssumeRole"
+                            ],
+                            "Principal": {
+                                "Service": [
+                                    {
+                                        "Fn::Sub": "states.${AWS::Region}.amazonaws.com"
+                                    }
+                                ]
+                            }
+                        }
+                    ]
+                }
+            }
+        },
+        "CloudHealthServiceStateMachineLambdaInvocationPolicy": {
+            "Type": "AWS::IAM::Policy",
+            "DependsOn": [
+                "CloudHealthServiceStateMachineRole"
+            ],
+            "Properties": {
+                "PolicyName": "CloudHealthServiceStateMachineLambdaInvocationPolicy",
+                "Roles": [
+                    {
+                        "Ref": "CloudHealthServiceStateMachineRole"
+                    }
+                ],
+                "PolicyDocument": {
+                    "Statement": [
+                        {
+                            "Effect": "Allow",
+                            "Action": [
+                                "lambda:invokeFunction"
+                            ],
+                            "Resource": {
+                                "Fn::Join": [
+                                    "",
+                                    [
+                                        "arn:",
+                                        {
+                                            "Ref": "AWS::Partition"
+                                        },
+                                        ":lambda:*:*:*"
+                                    ]
+                                ]
+                            }
+                        }
+                    ]
+                }
+            }
+        },
+        "CloudHealthServiceStateMachineCWLogPolicy": {
+            "Type": "AWS::IAM::Policy",
+            "DependsOn": [
+                "CloudHealthServiceStateMachineRole"
+            ],
+            "Properties": {
+                "PolicyName": "CloudHealthServiceStateMachineCWLogPolicy",
+                "Roles": [
+                    {
+                        "Ref": "CloudHealthServiceStateMachineRole"
+                    }
+                ],
+                "PolicyDocument": {
+                    "Statement": [
+                        {
+                            "Effect": "Allow",
+                            "Action": [
+                                "logs:CreateLogDelivery",
+                                "logs:GetLogDelivery",
+                                "logs:UpdateLogDelivery",
+                                "logs:DeleteLogDelivery",
+                                "logs:ListLogDeliveries",
+                                "logs:PutResourcePolicy",
+                                "logs:DescribeResourcePolicies",
+                                "logs:DescribeLogGroups"
+                            ],
+                            "Resource": "*"
+                        }
+                    ]
+                }
+            }
+        },
+        "CloudHealthStateMachine": {
+            "Type": "AWS::Serverless::StateMachine",
+            "DependsOn": [
+                "EventProcessorFunction",
+                "MessageNotifierFunction"
+            ],
+            "Properties": {
+                "DefinitionSubstitutions": {
+                    "EventProcessorFunction": {
+                        "Fn::GetAtt": [
+                            "EventProcessorFunction",
+                            "Arn"
+                        ]
+                    },
+                    "MessageNotifierFunction": {
+                        "Fn::GetAtt": [
+                            "MessageNotifierFunction",
+                            "Arn"
+                        ]
+                    }
+                },
+                "DefinitionUri": {
+                    "Bucket": {
+                        "Ref": "Bucket"
+                    },
+                    "Key": {
+                        "Fn::Join": [
+                            "/",
+                            [
+                                {
+                                    "Ref": "StackName"
+                                },
+                                "cloudhealth-service-state-machine.asl.json"
+                            ]
+                        ]
+                    }
+                },
+                "Role": {
+                    "Fn::GetAtt": [
+                        "CloudHealthServiceStateMachineRole",
+                        "Arn"
+                    ]
+                }
+            }
+        },
+        "CloudHealthServiceLambdaInvocationPolicy": {
+            "Type": "AWS::IAM::Policy",
+            "DependsOn": [
+                "CloudServiceLambdaRole"
+            ],
+            "Properties": {
+                "PolicyName": "CloudHealthServiceLambdaInvocationPolicy",
+                "Roles": [
+                    {
+                        "Ref": "CloudServiceLambdaRole"
+                    }
+                ],
+                "PolicyDocument": {
+                    "Statement": [
+                        {
+                            "Effect": "Allow",
+                            "Action": [
+                                "lambda:invokeFunction"
+                            ],
+                            "Resource": {
+                                "Fn::Join": [
+                                    "",
+                                    [
+                                        "arn:",
+                                        {
+                                            "Ref": "AWS::Partition"
+                                        },
+                                        ":lambda:*:*:*"
+                                    ]
+                                ]
+                            }
+                        }
+                    ]
+                }
+            }
+        },
+        "EC2Policy": {
+            "Type": "AWS::IAM::Policy",
+            "DependsOn": [
+                "CloudServiceLambdaRole"
+            ],
+            "Properties": {
+                "PolicyName": "EC2Policy",
+                "Roles": [
+                    {
+                        "Ref": "CloudServiceLambdaRole"
+                    }
+                ],
+                "PolicyDocument": {
+                    "Statement": [
+                        {
+                            "Effect": "Allow",
+                            "Action": [
+                                "ec2: *"
+                            ],
+                            "Resource": "*"
+                        }
+                    ]
+                }
+            }
+        },
+        "SESPolicy": {
+            "Type": "AWS::IAM::Policy",
+            "DependsOn": [
+                "CloudServiceLambdaRole"
+            ],
+            "Properties": {
+                "PolicyName": "SESPolicy",
+                "Roles": [
+                    {
+                        "Ref": "CloudServiceLambdaRole"
+                    }
+                ],
+                "PolicyDocument": {
+                    "Statement": [
+                        {
+                            "Effect": "Allow",
+                            "Action": ["ses: *", "ses:SendEmail"],
+                            "Resource": "*"
+                        }
+                    ]
+                }
+            }
+        },
+        "DynamoDBPolicy": {
+            "Type": "AWS::IAM::Policy",
+            "DependsOn": [
+                "CloudServiceLambdaRole"
+            ],
+            "Properties": {
+                "PolicyName": "DynamoDBPolicy",
+                "Roles": [
+                    {
+                        "Ref": "CloudServiceLambdaRole"
+                    }
+                ],
+                "PolicyDocument": {
+                    "Statement": [
+                        {
+                            "Effect": "Allow",
+                            "Action": [
+                                "dynamodb:PutItem",
+                                "dynamodb:Query",
+                                "dynamodb:UpdateItem",
+                                "dynamodb:ListTables",
+                                "dynamodb:DeleteItem",
+                                "dynamodb:GetItem",
+                                "dynamodb:Scan"
+                            ],
+                            "Resource": {
+                                "Fn::Join": [
+                                    "",
+                                    [
+                                        "arn:",
+                                        {
+                                            "Ref": "AWS::Partition"
+                                        },
+                                        ":dynamodb:*:*:*"
+                                    ]
+                                ]
+                            }
+                        }
+                    ]
+                }
+            }
+        },
+        "LogAccessPolicy": {
+            "Type": "AWS::IAM::Policy",
+            "DependsOn": [
+                "CloudServiceLambdaRole"
+            ],
+            "Properties": {
+                "PolicyName": "LogAccessPolicy",
+                "Roles": [
+                    {
+                        "Ref": "CloudServiceLambdaRole"
+                    }
+                ],
+                "PolicyDocument": {
+                    "Statement": [
+                        {
+                            "Effect": "Allow",
+                            "Action": [
+                                "logs:CreateLogGroup",
+                                "logs:CreateLogStream",
+                                "logs:PutLogEvents"
+                            ],
+                            "Resource": [
+                                "*"
+                            ]
+                        }
+                    ]
+                }
+            }
+        },
+	    "EventProcessorFunction": {
+            "Type": "AWS::Serverless::Function",
+            "Properties": {
+                "Description": "The event processor function handler.",
+                "CodeUri": {
+                    "Bucket": {
+                        "Ref": "Bucket"
+                    },
+                    "Key": {
+                        "Fn::Join": [
+                            "/",
+                            [	
+                            	{
+                                    "Ref": "StackName"
+                                },
+                                "handlers.zip"
+                            ]
+                        ]
+                    }
+                },
+                "Handler": "{{EventProcessorHandler}}",
+                "Role": {
+                    "Fn::GetAtt": [
+                        "CloudServiceLambdaRole",
+                        "Arn"
+                    ]
+                },
+                "Environment": {
+                    "Variables": {
+                        "StackName": {
+                            "Ref": "StackName"
+                        },
+                        "ChannelsTable": {
+                            "Ref": "ChannelsTable"
+                        },
+                        "EventsTable": {
+                            "Ref": "EventsTable"
+                        },
+                        "Stage": "{{Stage}}",
+                        "Region": { "Ref" : "AWS::Region" }
+                    }
+                }
+            }
+        },
+	    "MessageNotifierFunction": {
+            "Type": "AWS::Serverless::Function",
+            "Properties": {
+                "Description": "The message notifier function handler.",
+                "CodeUri": {
+                    "Bucket": {
+                        "Ref": "Bucket"
+                    },
+                    "Key": {
+                        "Fn::Join": [
+                            "/",
+                            [	
+                            	{
+                                    "Ref": "StackName"
+                                },
+                                "handlers.zip"
+                            ]
+                        ]
+                    }
+                },
+                "Handler": "{{MessageNotifierHandler}}",
+                "Role": {
+                    "Fn::GetAtt": [
+                        "CloudServiceLambdaRole",
+                        "Arn"
+                    ]
+                },
+                "Environment": {
+                    "Variables": {
+                        "StackName": {
+                            "Ref": "StackName"
+                        },
+                        "ChannelsTable": {
+                            "Ref": "ChannelsTable"
+                        },
+                        "EventsTable": {
+                            "Ref": "EventsTable"
+                        },
+                        "Stage": "{{Stage}}",
+                        "Region": { "Ref" : "AWS::Region" }
+                    }
+                }
+            }
+        },
+        "EventsTable": {
+            "Type": "AWS::DynamoDB::Table",
+            "Properties": {
+                "AttributeDefinitions": [
+                    {
+                        "AttributeName": "EventSource",
+                        "AttributeType": "S"
+                    },
+                    {
+                        "AttributeName": "EventID",
+                        "AttributeType": "S"
+                    }
+                ],
+                "KeySchema": [
+                    {
+                        "AttributeName": "EventSource",
+                        "KeyType": "HASH"
+                    },
+                    {
+                        "AttributeName": "EventID",
+                        "KeyType": "RANGE"
+                    }
+                ],
+                "TableName": {
+                    "Fn::Join": [
+                        "-",
+                        [
+                            {
+                                "Ref": "StackName"
+                            },
+                            "EventsTable"
+                        ]
+                    ]
+                },
+                "BillingMode": "PAY_PER_REQUEST"
+            }
+        },
+        "ChannelsTable": {
+            "Type": "AWS::DynamoDB::Table",
+            "Properties": {
+                "AttributeDefinitions": [
+                    {
+                        "AttributeName": "EventCode",
+                        "AttributeType": "S"
+                    },
+                    {
+                        "AttributeName": "ChannelType",
+                        "AttributeType": "S"
+                    }
+                ],
+                "KeySchema": [
+                    {
+                        "AttributeName": "EventCode",
+                        "KeyType": "HASH"
+                    },
+                    {
+                        "AttributeName": "ChannelType",
+                        "KeyType": "RANGE"
+                    }
+                ],
+                "TableName": {
+                    "Fn::Join": [
+                        "-",
+                        [
+                            {
+                                "Ref": "StackName"
+                            },
+                            "ChannelsTable"
+                        ]
+                    ]
+                },
+                "BillingMode": "PAY_PER_REQUEST"
+            }
+        }
+    },
+    "Outputs": {
+        "EventProcessorFunction": {
+            "Description": "The event processor function name.",
+            "Value": {
+                "Ref": "EventProcessorFunction"
+            }
+        },
+        "MessageNotifierFunction": {
+            "Description": "The message notifier function name.",
+            "Value": {
+                "Ref": "MessageNotifierFunction"
+            }
+        },
+        "EventsTable": {
+            "Description": "The events DynamoDB table",
+            "Value": {
+                "Ref": "EventsTable"
+            }
+        },
+        "ChannelsTable": {
+            "Description": "The channels DynamoDB table",
+            "Value": {
+                "Ref": "ChannelsTable"
+            }
+        },
+        "StepFunctionARN": {
+            "Description": "The stepfunction ARN.",
+            "Value": {
+                "Ref": "CloudHealthStateMachine"
+            }
+        }
+    }
+}

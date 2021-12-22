@@ -1,0 +1,29 @@
+plugins {
+    id 'java-library'
+}
+
+apply plugin: 'java'
+
+repositories {
+    jcenter()
+}
+
+allprojects {
+	Properties props = new Properties()
+	props.load(new FileInputStream("${project.rootDir}/version.properties"))
+	props.each { prop ->
+	  project.ext.set(prop.key, prop.value)
+	}
+}
+
+task deployDevelopmentStack(dependsOn: [':integTest:integTest']) {
+	doLast {
+		println 'The development stack is created.'
+	}
+}
+
+task deployProductionStack(dependsOn: [':infrastructure:resolveProductionTemplate']) {
+	doLast {
+		println 'The production stack is created.'
+	}
+}

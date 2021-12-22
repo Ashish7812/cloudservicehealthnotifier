@@ -1,0 +1,17 @@
+{
+  "version": "0",
+  "id": "12719fa9-bca9-936c-d06c-40adc062b6bd",
+  "detail-type": "This event processing will fail.",
+  "source": "aws.health",
+  "account": "061209114125",
+  "time": "2021-12-16T15:27:19Z",
+  "region": "eu-south-1",
+  "resources": ["i-aws"],
+  "detail": {
+    "eventArn": "arn:aws:health:us-east-1",
+    "service": "EC2",
+    "eventTypeCode": "AWS_EC2_INSTANCE_AUTO_RECOVERY_SUCCESS",
+    "eventTypeCategory": "accountNotification",
+	"description": "The ec2 instance is recoverd successfully."
+  }
+}

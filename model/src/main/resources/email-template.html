@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <title>Cloud service health notification</title>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.1.3/css/bootstrap.min.css">
+  <script src="https://code.jquery.com/jquery-3.3.1.slim.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.3/umd/popper.min.js"></script>
+  <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.1.3/js/bootstrap.min.js"></script>
+</head>
+<body>
+
+<div class="container">           
+  <table class="table table-borderless table-striped">
+    <thead %s>
+      <tr>
+        <th colspan=2 class="col-md-1 text-center"></th>
+      </tr>
+    </thead>
+    <tbody>
+	 <tr>
+        <td class="col-md-1"><b>EventID: </b></td>
+        <td class="col-md-1">%s</td>
+      </tr>
+	  <tr>
+        <td class="col-md-1"><b>EventSource: </b></td>
+        <td class="col-md-1">%s</td>
+      </tr>
+      <tr>
+        <td class="col-md-1"><b>EventCode: </b></td>
+        <td class="col-md-1">%s</td>
+      </tr>
+      <tr>
+        <td class="col-md-1"><b>Region: </b></td>
+        <td class="col-md-1">%s</td>
+      </tr>
+	  <tr>
+        <td class="col-md-1"><b>Account: </b></td>
+        <td class="col-md-1">%s</td>
+      </tr>
+	  <tr>
+        <td class="col-md-1"><b>Processed Message: </b></td>
+        <td class="col-md-1">%s</td>
+      </tr>
+	  <tr>
+        <td class="col-md-1"><b>Error Message: </b></td>
+        <td class="col-md-1">%s</td>
+      </tr>
+	  <tr>
+        <td class="col-md-1"><b>Event Description: </b></td>
+        <td class="col-md-1">%s</td>
+      </tr>
+	  <tr>
+        <td colspan=2 class="text-center" style="color:blue;">This event is processed by the marcus team. If you have any questions please reach out to us in the following mail address. <b>marcus@cs.com</b></td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+</body>
+</html>
